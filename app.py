@@ -25,7 +25,7 @@ if 'assets' not in st.session_state:
         {'ticker': 'GOOGL', 'weight': 33}
     ]
 
-st.sidebar.subheader("📊 Portfolio Assets")
+st.sidebar.subheader("Portfolio Assets")
 
 # Función para agregar nuevo activo
 def add_asset():
@@ -60,7 +60,7 @@ for i, asset in enumerate(st.session_state.assets):
     
     with col3:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🗑️", key=f"remove_{i}", help="Remove asset"):
+        if st.button("X", key=f"remove_{i}", help="Remove asset"):
             remove_asset(i)
             st.rerun()
 
@@ -88,7 +88,7 @@ initial_capital = st.sidebar.number_input(
 
 benchmark_ticker = "SPY"
 
-run = st.sidebar.button("🚀 Simulate", use_container_width=True, type="primary")
+run = st.sidebar.button("Simulate", use_container_width=True, type="primary")
 
 # =========================
 # FUNCTIONS
