@@ -17,7 +17,7 @@ st.markdown("___________________________________________________")
 st.sidebar.header("Parameters")
 
 tickers_input = st.sidebar.text_input(
-    "Tickers (ej: AAPL,MSFT,GOOGL)",
+    "Symbols (ej: AAPL,MSFT,GOOGL)",
     value="AAPL,MSFT,GOOGL"
 )
 
@@ -33,7 +33,7 @@ initial_capital = st.sidebar.number_input(
     "Initial Capital ($)", value=10000.0, step=500.0
 )
 
-run = st.sidebar.button("Simular")
+run = st.sidebar.button("Simulate")
 
 # =========================
 # FUNCIONES
