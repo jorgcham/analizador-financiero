@@ -5,7 +5,7 @@ import numpy as np
 from datetime import date
 
 # =========================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN
 # =========================
 st.set_page_config(page_title="Simulador de Portfolio", layout="wide")
 st.title("📊 Simulador Profesional de Portfolio")
@@ -38,17 +38,22 @@ run = st.sidebar.button("Simular")
 # =========================
 # FUNCIONES
 # =========================
-
 def get_prices(tickers, start, end):
-    raw = yf.download(tickers, start=start, end=end, progress=False)
+    raw = yf.download(
+        tickers,
+        start=start,
+        end=end,
+        auto_adjust=True,
+        progress=False
+    )
 
     if raw.empty:
         return pd.DataFrame()
 
     if isinstance(raw.columns, pd.MultiIndex):
-        prices = raw["Adj Close"]
+        prices = raw["Close"]
     else:
-        prices = raw[["Adj Close"]]
+        prices = raw[["Close"]]
         prices.columns = tickers
 
     return prices.dropna()
@@ -88,7 +93,9 @@ if run:
             st.error("No se pudieron descargar datos")
             st.stop()
 
-        portfolio_value, portfolio_ret = simulate(prices, weights, initial_capital)
+        portfolio_value, portfolio_ret = simulate(
+            prices, weights, initial_capital
+        )
 
         # =========================
         # MÉTRICAS
