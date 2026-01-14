@@ -303,9 +303,9 @@ if run:
                 'benchmark_ticker': benchmark_ticker
             }
 
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-            st.session_state.simulation_results = None
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
+        st.session_state.simulation_results = None
             st.session_state.simulation_results = None
 
 # Mostrar resultados si existen
