@@ -4,69 +4,68 @@ import pandas as pd
 import quantstats as qs
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Analizador Pro", layout="wide")
-st.title("📈 Mi Simulador de Inversiones vs Mercado")
+st.set_page_config(page_title="Simulador de Inversión Personal", layout="wide")
+st.title("🚀 Simulador de Inversión Histórica")
 
-# Barra lateral
-st.sidebar.header("Tu Cartera")
-tickers_in = st.sidebar.text_input("Empresas (ej: AAPL, MSFT, GLD)", "AAPL, MSFT, GLD")
-pesos_in = st.sidebar.text_input("Pesos (ej: 0.34, 0.33, 0.33)", "0.34, 0.33, 0.33")
-capital = st.sidebar.number_input("Inversión Inicial (€)", value=1000)
-anos = st.sidebar.slider("Años atrás", 1, 10, 6)
+# --- BARRA LATERAL: CONFIGURACIÓN ---
+st.sidebar.header("Parámetros de la Simulación")
 
-# Añadimos un benchmark (S&P 500)
-benchmark = "SPY"
+tickers_in = st.sidebar.text_input("Símbolos (ej: AAPL, MSFT, TSLA, GLD)", "AAPL, MSFT, GLD")
+pesos_in = st.sidebar.text_input("Pesos (deben sumar 1.0. Ej: 0.4, 0.4, 0.2)", "0.34, 0.33, 0.33")
+capital = st.sidebar.number_input("Cantidad invertida (€)", value=1000)
 
-if st.sidebar.button("Simular e Imprimir Gráficos"):
-    lista_tickers = [t.strip().upper() for t in tickers_in.split(",")]
-    lista_pesos = [float(p.strip()) for p in pesos_in.split(",")]
-    
-    inicio = datetime.now() - timedelta(days=365 * anos)
-    # Descargamos tus activos + el mercado (SPY)
-    todos = lista_tickers + [benchmark]
-    datos = yf.download(todos, start=inicio, auto_adjust=True, progress=False)['Close']
-    
-    # Preparamos retornos
-    retornos = datos.pct_change().dropna()
-    cartera_ret = (retornos[lista_tickers] * lista_pesos).sum(axis=1)
-    bench_ret = retornos[benchmark]
+# NUEVO: Selección de Fechas
+st.sidebar.subheader("Periodo de Análisis")
+fecha_inicio = st.sidebar.date_input("Fecha de Inicio", datetime.now() - timedelta(days=365*5))
+fecha_fin = st.sidebar.date_input("Fecha de Fin", datetime.now())
 
-    st.subheader(f"Resultado de invertir {capital}€ frente al S&P 500")
-    
-    hoy = datetime.now()
-    periodos = {"1 Año": 365, "3 Años": 365*3, "5 Años": 365*5}
-    res_data = []
-    
-    for nombre, dias in periodos.items():
-        f_pasada = hoy - timedelta(days=dias)
-        if f_pasada > inicio:
-            # Tu cartera
-            v_final_c = 0
-            v_final_b = capital * (1 + ( (datos[benchmark].iloc[-1] - datos[benchmark].asof(f_pasada)) / datos[benchmark].asof(f_pasada) ))
+benchmark = "SPY" # S&P 500 para comparar
+
+if st.sidebar.button("Ejecutar Simulación"):
+    try:
+        # 1. Procesar Tickers y Pesos
+        lista_tickers = [t.strip().upper() for t in tickers_in.split(",")]
+        lista_pesos = [float(p.strip()) for p in pesos_in.split(",")]
+        
+        if abs(sum(lista_pesos) - 1.0) > 0.01:
+            st.error("⚠️ Los pesos deben sumar 1.0 exactos.")
+        else:
+            # 2. Descargar Datos
+            todos = lista_tickers + [benchmark]
+            datos = yf.download(todos, start=fecha_inicio, end=fecha_fin, auto_adjust=True, progress=False)['Close']
             
-            for i, t in enumerate(lista_tickers):
-                p_act = float(datos[t].iloc[-1])
-                p_pas = float(datos[t].asof(f_pasada))
-                v_final_c += (capital * lista_pesos[i]) * (p_act / p_pas)
+            # Limpiar datos: Quitar zonas horarias para evitar el error TypeError
+            datos.index = datos.index.tz_localize(None)
             
-            res_data.append({
-                "Periodo": nombre,
-                "Tu Cartera (€)": f"{v_final_c:.2f}€",
-                "S&P 500 (€)": f"{v_final_b:.2f}€",
-                "Diferencia": f"{v_final_c - v_final_b:.2f}€"
-            })
-    
-    st.table(pd.DataFrame(res_data))
+            # 3. Calcular Retornos
+            retornos = datos.pct_change().dropna()
+            
+            # Calculamos retorno de tu cartera
+            cartera_ret = (retornos[lista_tickers] * lista_pesos).sum(axis=1)
+            # Calculamos retorno del S&P 500
+            bench_ret = retornos[benchmark]
 
-    # GRÁFICO PROFESIONAL SIN ERRORES
-    st.subheader("Gráfico Comparativo: Tu Cartera vs Mercado")
-    
-    # 1. Limpiamos las fechas para que no tengan zona horaria (esto quita el error rojo)
-    cartera_ret.index = cartera_ret.index.tz_localize(None)
-    bench_ret.index = bench_ret.index.tz_localize(None)
-    
-    # 2. Creamos el gráfico comparativo
-    fig = qs.plots.returns(cartera_ret, bench_ret, output=None, show=False)
-    
-    # 3. Lo mostramos en la web
-    st.pyplot(fig)
+            # --- RESULTADOS NUMÉRICOS ---
+            st.subheader(f"Análisis desde {fecha_inicio} hasta {fecha_fin}")
+            
+            # Valor final de tu dinero
+            v_final_cartera = capital * (1 + (cartera_ret + 1).prod() - 1)
+            v_final_bench = capital * (1 + (bench_ret + 1).prod() - 1)
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Tu Cartera", f"{v_final_cartera:,.2f}€", f"{((v_final_cartera/capital)-1)*100:.2f}%")
+            col2.metric("S&P 500 (Mercado)", f"{v_final_bench:,.2f}€", f"{((v_final_bench/capital)-1)*100:.2f}%")
+            col3.metric("Diferencia Ganada", f"{v_final_cartera - v_final_bench:,.2f}€")
+
+            # --- GRÁFICOS ---
+            st.subheader("📈 Evolución de 1€ invertido")
+            # Esto crea el gráfico comparativo profesional
+            fig = qs.plots.returns(cartera_ret, bench_ret, output=None, show=False)
+            st.pyplot(fig)
+            
+            st.subheader("📉 Periodos de Caída (Drawdown)")
+            fig_drawdown = qs.plots.drawdown(cartera_ret, output=None, show=False)
+            st.pyplot(fig_drawdown)
+
+    except Exception as e:
+        st.error(f"Hubo un error con los símbolos o las fechas. Asegúrate de que los tickers existen. Error: {e}")
