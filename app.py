@@ -8,7 +8,8 @@ from datetime import date
 # CONFIGURATION
 # =========================
 st.set_page_config(page_title="Portfolio Simulator", layout="wide")
-st.title("📊 Portfolio Simulator")
+st.title("📊 Portfolio Simulator (Kwanti-style)")
+st.markdown("Educational portfolio backtesting tool")
 st.markdown("---")
 
 # =========================
@@ -33,12 +34,14 @@ initial_capital = st.sidebar.number_input(
     "Initial Capital (USD)", value=10000.0, step=500.0
 )
 
+benchmark_ticker = "SPY"
+
 run = st.sidebar.button("Simulate")
 
 # =========================
 # FUNCTIONS
 # =========================
-def get_prices(tickers, start, end):
+def download_prices(tickers, start, end):
     raw = yf.download(
         tickers,
         start=start,
@@ -50,7 +53,6 @@ def get_prices(tickers, start, end):
     if raw.empty:
         return pd.DataFrame()
 
-    # Robust handling for 1 or multiple tickers
     if isinstance(raw.columns, pd.MultiIndex):
         prices = raw["Close"]
     else:
@@ -65,11 +67,23 @@ def normalize_weights(w):
     return w / w.sum()
 
 
-def simulate(prices, weights, capital):
+def portfolio_simulation(prices, weights, capital):
     returns = prices.pct_change().dropna()
-    portfolio_returns = returns.dot(weights)
-    portfolio_value = (1 + portfolio_returns).cumprod() * capital
-    return portfolio_value, portfolio_returns
+    port_returns = returns.dot(weights)
+    port_value = (1 + port_returns).cumprod() * capital
+    return port_value, port_returns
+
+
+def max_drawdown(series):
+    cumulative = (1 + series).cumprod()
+    peak = cumulative.cummax()
+    drawdown = (cumulative - peak) / peak
+    return drawdown.min() * 100
+
+
+def sharpe_ratio(returns, risk_free=0.0):
+    excess = returns - risk_free / 252
+    return np.sqrt(252) * excess.mean() / excess.std()
 
 # =========================
 # MAIN
@@ -84,19 +98,32 @@ if run:
             st.stop()
 
         if len(tickers) != len(weights):
-            st.error("The number of weights and symbols must be the same")
+            st.error("The number of weights and symbols must match")
             st.stop()
 
         weights = normalize_weights(weights)
 
-        prices = get_prices(tickers, start_date, end_date)
-        if prices.empty:
-            st.error("It was not possible to download market data")
+        # Download prices
+        asset_prices = download_prices(tickers, start_date, end_date)
+        benchmark_prices = download_prices([benchmark_ticker], start_date, end_date)
+
+        if asset_prices.empty or benchmark_prices.empty:
+            st.error("Market data could not be downloaded")
             st.stop()
 
-        portfolio_value, portfolio_returns = simulate(
-            prices, weights, initial_capital
+        # Align dates
+        prices = asset_prices.join(benchmark_prices, how="inner")
+
+        asset_prices = prices[tickers]
+        benchmark_prices = prices[benchmark_ticker]
+
+        # Simulations
+        portfolio_value, portfolio_returns = portfolio_simulation(
+            asset_prices, weights, initial_capital
         )
+
+        benchmark_returns = benchmark_prices.pct_change().dropna()
+        benchmark_value = (1 + benchmark_returns).cumprod() * initial_capital
 
         # =========================
         # METRICS
@@ -106,24 +133,45 @@ if run:
             (portfolio_value.iloc[-1] / initial_capital)
             ** (252 / len(portfolio_value)) - 1
         ) * 100
-        volatility = portfolio_returns.std() * np.sqrt(252) * 100
 
-        c1, c2, c3 = st.columns(3)
+        volatility = portfolio_returns.std() * np.sqrt(252) * 100
+        sharpe = sharpe_ratio(portfolio_returns)
+        mdd = max_drawdown(portfolio_returns)
+
+        b_total_return = (benchmark_value.iloc[-1] / initial_capital - 1) * 100
+        b_annual_return = (
+            (benchmark_value.iloc[-1] / initial_capital)
+            ** (252 / len(benchmark_value)) - 1
+        ) * 100
+
+        # =========================
+        # DISPLAY METRICS
+        # =========================
+        st.subheader("📌 Portfolio vs Benchmark (SPY)")
+
+        c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Final Value (USD)", f"${portfolio_value.iloc[-1]:,.2f}")
         c2.metric("Total Return (%)", f"{total_return:.2f}%")
         c3.metric("Annual Return (%)", f"{annual_return:.2f}%")
+        c4.metric("Volatility (%)", f"{volatility:.2f}%")
+        c5.metric("Sharpe Ratio", f"{sharpe:.2f}")
 
-        c4, _, _ = st.columns(3)
-        c4.metric("Annual Volatility (%)", f"{volatility:.2f}%")
+        c6, c7, _, _, _ = st.columns(5)
+        c6.metric("Max Drawdown (%)", f"{mdd:.2f}%")
+        c7.metric("SPY Annual Return (%)", f"{b_annual_return:.2f}%")
 
         # =========================
         # CHARTS
         # =========================
-        st.subheader("📈 Portfolio Evolution")
-        st.line_chart(portfolio_value)
+        st.subheader("📈 Growth of $1 (Portfolio vs SPY)")
+        comparison = pd.DataFrame({
+            "Portfolio": portfolio_value / initial_capital,
+            "SPY": benchmark_value / initial_capital
+        })
+        st.line_chart(comparison)
 
-        st.subheader("📊 Adjusted Prices")
-        st.line_chart(prices)
+        st.subheader("📊 Asset Prices (Adjusted)")
+        st.line_chart(asset_prices)
 
         # =========================
         # TABLE
@@ -132,7 +180,7 @@ if run:
         table = pd.DataFrame({
             "Ticker": tickers,
             "Weight": weights,
-            "Assigned Capital (USD)": weights * initial_capital
+            "Allocated Capital (USD)": weights * initial_capital
         })
         st.dataframe(table, use_container_width=True)
 
