@@ -306,99 +306,100 @@ if run:
         except Exception as e:
             st.error(f"❌ Error: {e}")
             st.session_state.simulation_results = None
+            st.session_state.simulation_results = None
 
 # Mostrar resultados si existen
 if st.session_state.simulation_results:
     results = st.session_state.simulation_results
 
     # =========================
-            # DISPLAY
-            # =========================
-            
-            # Tabs
-            tab1, tab2, tab3 = st.tabs(["📊 Performance", "💰 Allocation", "📈 Asset Prices"])
-            
-            with tab1:
-                # Metrics
-                col1, col2, col3, col4, col5, col6 = st.columns(6)
-                
-                col1.metric("💵 Final Value", f"${results['portfolio_value'].iloc[-1]:,.0f}", 
-                           f"{results['total_return']:+.2f}%")
-                col2.metric("📈 Total Return", f"{results['total_return']:.2f}%")
-                col3.metric("📆 Annual Return", f"{results['annual_return']:.2f}%")
-                col4.metric("📉 Volatility", f"{results['volatility']:.2f}%")
-                col5.metric("⚡ Sharpe Ratio", f"{results['sharpe']:.2f}")
-                col6.metric("🔻 Max Drawdown", f"{results['mdd']:.2f}%")
-                
-                st.markdown("---")
-                
-                # Performance chart
-                st.plotly_chart(create_performance_chart(
-                    results['portfolio_value'], 
-                    results['benchmark_value'], 
-                    results['initial_capital']), 
-                    use_container_width=True)
-                
-                # Comparison table
-                st.subheader("📊 Portfolio vs Benchmark")
-                comparison_df = pd.DataFrame({
-                    'Metric': ['Total Return', 'Annual Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown'],
-                    'Portfolio': [f"{results['total_return']:.2f}%", f"{results['annual_return']:.2f}%", 
-                                 f"{results['volatility']:.2f}%", f"{results['sharpe']:.2f}", f"{results['mdd']:.2f}%"],
-                    f"{results['benchmark_ticker']}": [f"{results['b_total_return']:.2f}%", 
-                                                        f"{results['b_annual_return']:.2f}%", "-", "-", "-"]
-                })
-                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-            
-            with tab2:
-                col1, col2 = st.columns([1, 1])
-                
-                with col1:
-                    st.subheader("🥧 Portfolio Allocation")
-                    st.plotly_chart(create_pie_chart(results['tickers'], results['weights'] * 100), 
-                                   use_container_width=True)
-                
-                with col2:
-                    st.subheader("📋 Position Details")
-                    position_df = pd.DataFrame({
-                        'Ticker': results['tickers'],
-                        'Weight (%)': [f"{w*100:.2f}%" for w in results['weights']],
-                        'Capital ($)': [f"${w * results['initial_capital']:,.2f}" for w in results['weights']],
-                        'Final Value ($)': [f"${results['portfolio_value'].iloc[-1] * w:,.2f}" for w in results['weights']]
-                    })
-                    st.dataframe(position_df, use_container_width=True, hide_index=True)
-            
-            with tab3:
-                st.subheader("📈 Individual Asset Performance")
-                
-                # Normalize prices
-                normalized_prices = results['asset_prices'] / results['asset_prices'].iloc[0] * 100
-                
-                fig = go.Figure()
-                colors = px.colors.qualitative.Set2
-                
-                for i, ticker in enumerate(results['tickers']):
-                    fig.add_trace(go.Scatter(
-                        x=normalized_prices.index,
-                        y=normalized_prices[ticker],
-                        name=ticker,
-                        line=dict(width=2, color=colors[i % len(colors)])
-                    ))
-                
-                fig.update_layout(
-                    template='plotly_dark',
-                    height=500,
-                    hovermode='x unified',
-                    plot_bgcolor='#0e1117',
-                    paper_bgcolor='#0e1117',
-                    font=dict(color='#ffffff'),
-                    xaxis=dict(showgrid=True, gridcolor='#1e2130'),
-                    yaxis=dict(showgrid=True, gridcolor='#1e2130', title='Normalized Price'),
-                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-                    margin=dict(l=0, r=0, t=30, b=0)
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
+    # DISPLAY
+    # =========================
+    
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["📊 Performance", "💰 Allocation", "📈 Asset Prices"])
+    
+    with tab1:
+        # Metrics
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        
+        col1.metric("💵 Final Value", f"${results['portfolio_value'].iloc[-1]:,.0f}", 
+                   f"{results['total_return']:+.2f}%")
+        col2.metric("📈 Total Return", f"{results['total_return']:.2f}%")
+        col3.metric("📆 Annual Return", f"{results['annual_return']:.2f}%")
+        col4.metric("📉 Volatility", f"{results['volatility']:.2f}%")
+        col5.metric("⚡ Sharpe Ratio", f"{results['sharpe']:.2f}")
+        col6.metric("🔻 Max Drawdown", f"{results['mdd']:.2f}%")
+        
+        st.markdown("---")
+        
+        # Performance chart
+        st.plotly_chart(create_performance_chart(
+            results['portfolio_value'], 
+            results['benchmark_value'], 
+            results['initial_capital']), 
+            use_container_width=True)
+        
+        # Comparison table
+        st.subheader("📊 Portfolio vs Benchmark")
+        comparison_df = pd.DataFrame({
+            'Metric': ['Total Return', 'Annual Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown'],
+            'Portfolio': [f"{results['total_return']:.2f}%", f"{results['annual_return']:.2f}%", 
+                         f"{results['volatility']:.2f}%", f"{results['sharpe']:.2f}", f"{results['mdd']:.2f}%"],
+            f"{results['benchmark_ticker']}": [f"{results['b_total_return']:.2f}%", 
+                                                f"{results['b_annual_return']:.2f}%", "-", "-", "-"]
+        })
+        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+    
+    with tab2:
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.subheader("🥧 Portfolio Allocation")
+            st.plotly_chart(create_pie_chart(results['tickers'], results['weights'] * 100), 
+                           use_container_width=True)
+        
+        with col2:
+            st.subheader("📋 Position Details")
+            position_df = pd.DataFrame({
+                'Ticker': results['tickers'],
+                'Weight (%)': [f"{w*100:.2f}%" for w in results['weights']],
+                'Capital ($)': [f"${w * results['initial_capital']:,.2f}" for w in results['weights']],
+                'Final Value ($)': [f"${results['portfolio_value'].iloc[-1] * w:,.2f}" for w in results['weights']]
+            })
+            st.dataframe(position_df, use_container_width=True, hide_index=True)
+    
+    with tab3:
+        st.subheader("📈 Individual Asset Performance")
+        
+        # Normalize prices
+        normalized_prices = results['asset_prices'] / results['asset_prices'].iloc[0] * 100
+        
+        fig = go.Figure()
+        colors = px.colors.qualitative.Set2
+        
+        for i, ticker in enumerate(results['tickers']):
+            fig.add_trace(go.Scatter(
+                x=normalized_prices.index,
+                y=normalized_prices[ticker],
+                name=ticker,
+                line=dict(width=2, color=colors[i % len(colors)])
+            ))
+        
+        fig.update_layout(
+            template='plotly_dark',
+            height=500,
+            hovermode='x unified',
+            plot_bgcolor='#0e1117',
+            paper_bgcolor='#0e1117',
+            font=dict(color='#ffffff'),
+            xaxis=dict(showgrid=True, gridcolor='#1e2130'),
+            yaxis=dict(showgrid=True, gridcolor='#1e2130', title='Normalized Price'),
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+            margin=dict(l=0, r=0, t=30, b=0)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
 
         except Exception as e:
             st.error(f"❌ Error: {e}")
