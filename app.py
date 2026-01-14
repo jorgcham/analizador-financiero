@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 from datetime import date
 
+# -------------------------
+# Configuración página
+# -------------------------
 st.set_page_config(page_title="Simulador de Portfolio", layout="wide")
 
 st.title("📊 Simulador de Inversiones de Portfolio")
@@ -44,13 +47,22 @@ weights_input = st.sidebar.text_input(
 run_button = st.sidebar.button("Simular")
 
 # -------------------------
-# Helper functions
+# Funciones auxiliares
 # -------------------------
 
 def load_data(symbols, start, end):
-    data = yf.download(symbols, start=start, end=end, progress=False)["Adj Close"]
-    if isinstance(data, pd.Series):
-        data = data.to_frame()
+    raw = yf.download(symbols, start=start, end=end, progress=False)
+
+    if raw.empty:
+        return pd.DataFrame()
+
+    # Manejo robusto de Adj Close
+    if isinstance(raw.columns, pd.MultiIndex):
+        data = raw["Adj Close"]
+    else:
+        data = raw[["Adj Close"]]
+        data.columns = symbols
+
     return data.dropna()
 
 
@@ -61,17 +73,21 @@ def normalize_weights(weights):
 
 def simulate_portfolio(prices, weights, investment):
     returns = prices.pct_change().dropna()
-    weighted_returns = returns.dot(weights)
-    portfolio_value = (1 + weighted_returns).cumprod() * investment
-    return portfolio_value, returns
+    portfolio_returns = returns.dot(weights)
+    portfolio_value = (1 + portfolio_returns).cumprod() * investment
+    return portfolio_value, portfolio_returns
 
 # -------------------------
-# Main logic
+# Lógica principal
 # -------------------------
 if run_button:
     try:
-        symbols = [s.strip().upper() for s in symbols_input.split(",")]
-        weights = [float(w.strip()) for w in weights_input.split(",")]
+        symbols = [s.strip().upper() for s in symbols_input.split(",") if s.strip()]
+        weights = [float(w.strip()) for w in weights_input.split(",") if w.strip()]
+
+        if len(symbols) == 0:
+            st.error("❌ Introduce al menos un símbolo")
+            st.stop()
 
         if len(symbols) != len(weights):
             st.error("❌ El número de símbolos y pesos debe coincidir")
@@ -85,14 +101,20 @@ if run_button:
             st.error("❌ No se pudieron obtener datos para los símbolos seleccionados")
             st.stop()
 
-        portfolio_value, returns = simulate_portfolio(prices, weights, initial_investment)
+        portfolio_value, portfolio_returns = simulate_portfolio(
+            prices, weights, initial_investment
+        )
 
         # -------------------------
-        # Metrics
+        # Métricas
         # -------------------------
         total_return = (portfolio_value.iloc[-1] / initial_investment - 1) * 100
-        annualized_return = ((portfolio_value.iloc[-1] / initial_investment) ** (252 / len(portfolio_value)) - 1) * 100
-        volatility = returns.dot(weights).std() * np.sqrt(252) * 100
+        annualized_return = (
+            (portfolio_value.iloc[-1] / initial_investment)
+            ** (252 / len(portfolio_value))
+            - 1
+        ) * 100
+        volatility = portfolio_returns.std() * np.sqrt(252) * 100
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Valor final (€)", f"{portfolio_value.iloc[-1]:,.2f}")
@@ -100,18 +122,18 @@ if run_button:
         col3.metric("Volatilidad anual (%)", f"{volatility:.2f}%")
 
         # -------------------------
-        # Charts
+        # Gráficos
         # -------------------------
-        st.subheader("Evolución del valor del portfolio")
+        st.subheader("📈 Evolución del valor del portfolio")
         st.line_chart(portfolio_value)
 
-        st.subheader("Precios ajustados de las acciones")
+        st.subheader("📊 Precios ajustados de las acciones")
         st.line_chart(prices)
 
         # -------------------------
-        # Table
+        # Tabla resumen
         # -------------------------
-        st.subheader("Resumen del portfolio")
+        st.subheader("📋 Resumen del portfolio")
         summary_df = pd.DataFrame({
             "Símbolo": symbols,
             "Peso": weights,
