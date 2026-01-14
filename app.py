@@ -62,6 +62,9 @@ if 'assets' not in st.session_state:
         {'ticker': 'NVDA', 'weight': 20}
     ]
 
+if 'simulation_results' not in st.session_state:
+    st.session_state.simulation_results = None
+
 st.sidebar.subheader("💼 Portfolio Assets")
 
 # Funciones para gestionar activos
@@ -282,7 +285,33 @@ if run:
             b_total_return = (benchmark_value.iloc[-1] / initial_capital - 1) * 100
             b_annual_return = ((benchmark_value.iloc[-1] / initial_capital) ** (252 / len(benchmark_value)) - 1) * 100
 
-            # =========================
+            # Guardar resultados en session_state
+            st.session_state.simulation_results = {
+                'tickers': tickers,
+                'weights': weights,
+                'portfolio_value': portfolio_value,
+                'benchmark_value': benchmark_value,
+                'asset_prices': asset_prices,
+                'total_return': total_return,
+                'annual_return': annual_return,
+                'volatility': volatility,
+                'sharpe': sharpe,
+                'mdd': mdd,
+                'b_total_return': b_total_return,
+                'b_annual_return': b_annual_return,
+                'initial_capital': initial_capital,
+                'benchmark_ticker': benchmark_ticker
+            }
+
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
+            st.session_state.simulation_results = None
+
+# Mostrar resultados si existen
+if st.session_state.simulation_results:
+    results = st.session_state.simulation_results
+
+    # =========================
             # DISPLAY
             # =========================
             
@@ -293,27 +322,31 @@ if run:
                 # Metrics
                 col1, col2, col3, col4, col5, col6 = st.columns(6)
                 
-                col1.metric("💵 Final Value", f"${portfolio_value.iloc[-1]:,.0f}", 
-                           f"{total_return:+.2f}%")
-                col2.metric("📈 Total Return", f"{total_return:.2f}%")
-                col3.metric("📆 Annual Return", f"{annual_return:.2f}%")
-                col4.metric("📉 Volatility", f"{volatility:.2f}%")
-                col5.metric("⚡ Sharpe Ratio", f"{sharpe:.2f}")
-                col6.metric("🔻 Max Drawdown", f"{mdd:.2f}%")
+                col1.metric("💵 Final Value", f"${results['portfolio_value'].iloc[-1]:,.0f}", 
+                           f"{results['total_return']:+.2f}%")
+                col2.metric("📈 Total Return", f"{results['total_return']:.2f}%")
+                col3.metric("📆 Annual Return", f"{results['annual_return']:.2f}%")
+                col4.metric("📉 Volatility", f"{results['volatility']:.2f}%")
+                col5.metric("⚡ Sharpe Ratio", f"{results['sharpe']:.2f}")
+                col6.metric("🔻 Max Drawdown", f"{results['mdd']:.2f}%")
                 
                 st.markdown("---")
                 
                 # Performance chart
-                st.plotly_chart(create_performance_chart(portfolio_value, benchmark_value, initial_capital), 
-                               use_container_width=True)
+                st.plotly_chart(create_performance_chart(
+                    results['portfolio_value'], 
+                    results['benchmark_value'], 
+                    results['initial_capital']), 
+                    use_container_width=True)
                 
                 # Comparison table
                 st.subheader("📊 Portfolio vs Benchmark")
                 comparison_df = pd.DataFrame({
                     'Metric': ['Total Return', 'Annual Return', 'Volatility', 'Sharpe Ratio', 'Max Drawdown'],
-                    'Portfolio': [f"{total_return:.2f}%", f"{annual_return:.2f}%", f"{volatility:.2f}%", 
-                                 f"{sharpe:.2f}", f"{mdd:.2f}%"],
-                    f'{benchmark_ticker}': [f"{b_total_return:.2f}%", f"{b_annual_return:.2f}%", "-", "-", "-"]
+                    'Portfolio': [f"{results['total_return']:.2f}%", f"{results['annual_return']:.2f}%", 
+                                 f"{results['volatility']:.2f}%", f"{results['sharpe']:.2f}", f"{results['mdd']:.2f}%"],
+                    f"{results['benchmark_ticker']}": [f"{results['b_total_return']:.2f}%", 
+                                                        f"{results['b_annual_return']:.2f}%", "-", "-", "-"]
                 })
                 st.dataframe(comparison_df, use_container_width=True, hide_index=True)
             
@@ -322,15 +355,16 @@ if run:
                 
                 with col1:
                     st.subheader("🥧 Portfolio Allocation")
-                    st.plotly_chart(create_pie_chart(tickers, weights * 100), use_container_width=True)
+                    st.plotly_chart(create_pie_chart(results['tickers'], results['weights'] * 100), 
+                                   use_container_width=True)
                 
                 with col2:
                     st.subheader("📋 Position Details")
                     position_df = pd.DataFrame({
-                        'Ticker': tickers,
-                        'Weight (%)': [f"{w*100:.2f}%" for w in weights],
-                        'Capital ($)': [f"${w * initial_capital:,.2f}" for w in weights],
-                        'Final Value ($)': [f"${portfolio_value.iloc[-1] * w:,.2f}" for w in weights]
+                        'Ticker': results['tickers'],
+                        'Weight (%)': [f"{w*100:.2f}%" for w in results['weights']],
+                        'Capital ($)': [f"${w * results['initial_capital']:,.2f}" for w in results['weights']],
+                        'Final Value ($)': [f"${results['portfolio_value'].iloc[-1] * w:,.2f}" for w in results['weights']]
                     })
                     st.dataframe(position_df, use_container_width=True, hide_index=True)
             
@@ -338,12 +372,12 @@ if run:
                 st.subheader("📈 Individual Asset Performance")
                 
                 # Normalize prices
-                normalized_prices = asset_prices / asset_prices.iloc[0] * 100
+                normalized_prices = results['asset_prices'] / results['asset_prices'].iloc[0] * 100
                 
                 fig = go.Figure()
                 colors = px.colors.qualitative.Set2
                 
-                for i, ticker in enumerate(tickers):
+                for i, ticker in enumerate(results['tickers']):
                     fig.add_trace(go.Scatter(
                         x=normalized_prices.index,
                         y=normalized_prices[ticker],
