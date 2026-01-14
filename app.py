@@ -8,13 +8,13 @@ from datetime import date
 # CONFIGURACIÓN
 # =========================
 st.set_page_config(page_title="Simulador de Portfolio", layout="wide")
-st.title("📊 Simulador Profesional de Portfolio")
-st.markdown("Simulación histórica de una cartera de inversión. Uso educativo.")
+st.title("Portfolio Simulator")
+st.markdown("___________________________________________________")
 
 # =========================
 # SIDEBAR
 # =========================
-st.sidebar.header("Parámetros")
+st.sidebar.header("Parameters")
 
 tickers_input = st.sidebar.text_input(
     "Tickers (ej: AAPL,MSFT,GOOGL)",
@@ -22,15 +22,15 @@ tickers_input = st.sidebar.text_input(
 )
 
 weights_input = st.sidebar.text_input(
-    "Pesos (ej: 0.4,0.3,0.3)",
+    "Weights (ej: 0.4,0.3,0.3)",
     value="0.34,0.33,0.33"
 )
 
-start_date = st.sidebar.date_input("Fecha inicio", date(2020, 1, 1))
-end_date = st.sidebar.date_input("Fecha fin", date.today())
+start_date = st.sidebar.date_input("From", date(2020, 1, 1))
+end_date = st.sidebar.date_input("To", date.today())
 
 initial_capital = st.sidebar.number_input(
-    "Capital inicial (€)", value=10000.0, step=500.0
+    "Initial Capital ($)", value=10000.0, step=500.0
 )
 
 run = st.sidebar.button("Simular")
@@ -79,18 +79,18 @@ if run:
         weights = [float(w.strip()) for w in weights_input.split(",") if w.strip()]
 
         if len(tickers) == 0:
-            st.error("Introduce al menos un ticker")
+            st.error("Add at least one symbol")
             st.stop()
 
         if len(tickers) != len(weights):
-            st.error("El número de pesos y tickers debe coincidir")
+            st.error("The number of weights and symbols must be the same")
             st.stop()
 
         weights = normalize_weights(weights)
 
         prices = get_prices(tickers, start_date, end_date)
         if prices.empty:
-            st.error("No se pudieron descargar datos")
+            st.error("It wasn´t possible to download the data")
             st.stop()
 
         portfolio_value, portfolio_ret = simulate(
@@ -108,32 +108,32 @@ if run:
         volatility = portfolio_ret.std() * np.sqrt(252) * 100
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Valor final (€)", f"{portfolio_value.iloc[-1]:,.2f}")
-        c2.metric("Retorno total (%)", f"{total_return:.2f}%")
-        c3.metric("Volatilidad anual (%)", f"{volatility:.2f}%")
+        c1.metric("Final Value ($)", f"{portfolio_value.iloc[-1]:,.2f}")
+        c2.metric("Total Return (%)", f"{total_return:.2f}%")
+        c3.metric("Annual Volatility (%)", f"{volatility:.2f}%")
 
         # =========================
         # GRÁFICOS
         # =========================
-        st.subheader("📈 Evolución del portfolio")
+        st.subheader("Porfolio Evolution")
         st.line_chart(portfolio_value)
 
-        st.subheader("📊 Precios ajustados")
+        st.subheader("Adjusted Prices")
         st.line_chart(prices)
 
         # =========================
         # TABLA
         # =========================
-        st.subheader("📋 Composición de la cartera")
+        st.subheader("Portolio Composition")
         table = pd.DataFrame({
             "Ticker": tickers,
-            "Peso": weights,
-            "Capital asignado (€)": weights * initial_capital
+            "Weight": weights,
+            "Asigned Capital (€)": weights * initial_capital
         })
         st.dataframe(table, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Error en la simulación: {e}")
+        st.error(f"Error in the simulation: {e}")
 
 st.markdown("---")
-st.caption("Simulador educativo · No es asesoramiento financiero")
+st.caption("_____________________________________________________")
