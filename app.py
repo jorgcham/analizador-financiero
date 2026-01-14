@@ -17,16 +17,68 @@ st.markdown("---")
 # =========================
 st.sidebar.header("Parameters")
 
-tickers_input = st.sidebar.text_input(
-    "Symbols (e.g. AAPL,MSFT,GOOGL)",
-    value="AAPL,MSFT,GOOGL"
-)
+# Inicializar session state para los activos
+if 'assets' not in st.session_state:
+    st.session_state.assets = [
+        {'ticker': 'AAPL', 'weight': 34},
+        {'ticker': 'MSFT', 'weight': 33},
+        {'ticker': 'GOOGL', 'weight': 33}
+    ]
 
-weights_input = st.sidebar.text_input(
-    "Weights (e.g. 0.4,0.3,0.3)",
-    value="0.34,0.33,0.33"
-)
+st.sidebar.subheader("📊 Portfolio Assets")
 
+# Función para agregar nuevo activo
+def add_asset():
+    st.session_state.assets.append({'ticker': '', 'weight': 0})
+
+# Función para eliminar activo
+def remove_asset(index):
+    if len(st.session_state.assets) > 1:
+        st.session_state.assets.pop(index)
+
+# Mostrar cada activo con sus controles
+for i, asset in enumerate(st.session_state.assets):
+    col1, col2, col3 = st.sidebar.columns([3, 2, 1])
+    
+    with col1:
+        asset['ticker'] = st.text_input(
+            f"Symbol {i+1}",
+            value=asset['ticker'],
+            key=f"ticker_{i}",
+            placeholder="e.g. AAPL"
+        ).upper()
+    
+    with col2:
+        asset['weight'] = st.number_input(
+            f"Weight {i+1} (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(asset['weight']),
+            step=1.0,
+            key=f"weight_{i}"
+        )
+    
+    with col3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🗑️", key=f"remove_{i}", help="Remove asset"):
+            remove_asset(i)
+            st.rerun()
+
+# Botón para agregar nuevo activo
+if st.sidebar.button("➕ Add Asset", use_container_width=True):
+    add_asset()
+    st.rerun()
+
+# Mostrar suma de pesos
+total_weight = sum(asset['weight'] for asset in st.session_state.assets)
+if total_weight != 100:
+    st.sidebar.warning(f"⚠️ Total weight: {total_weight:.1f}% (should be 100%)")
+else:
+    st.sidebar.success(f"✅ Total weight: {total_weight:.1f}%")
+
+st.sidebar.markdown("---")
+
+# Parámetros de fecha y capital
 start_date = st.sidebar.date_input("From", date(2020, 1, 1))
 end_date = st.sidebar.date_input("To", date.today())
 
@@ -36,7 +88,7 @@ initial_capital = st.sidebar.number_input(
 
 benchmark_ticker = "SPY"
 
-run = st.sidebar.button("Simulate")
+run = st.sidebar.button("🚀 Simulate", use_container_width=True, type="primary")
 
 # =========================
 # FUNCTIONS
@@ -90,8 +142,9 @@ def sharpe_ratio(returns, risk_free=0.0):
 # =========================
 if run:
     try:
-        tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
-        weights = [float(w.strip()) for w in weights_input.split(",") if w.strip()]
+        # Filtrar activos válidos
+        tickers = [asset['ticker'] for asset in st.session_state.assets if asset['ticker'].strip()]
+        weights = [asset['weight'] / 100.0 for asset in st.session_state.assets if asset['ticker'].strip()]
 
         if len(tickers) == 0:
             st.error("Please add at least one symbol")
@@ -101,6 +154,7 @@ if run:
             st.error("The number of weights and symbols must match")
             st.stop()
 
+        # Normalizar pesos (por si no suman exactamente 100%)
         weights = normalize_weights(weights)
 
         # Download prices
@@ -179,7 +233,7 @@ if run:
         st.subheader("Portfolio Composition")
         table = pd.DataFrame({
             "Ticker": tickers,
-            "Weight": weights,
+            "Weight (%)": [w * 100 for w in weights],
             "Allocated Capital (USD)": weights * initial_capital
         })
         st.dataframe(table, use_container_width=True)
