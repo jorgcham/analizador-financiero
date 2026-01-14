@@ -25,7 +25,7 @@ if 'assets' not in st.session_state:
         {'ticker': 'GOOGL', 'weight': 33}
     ]
 
-st.sidebar.subheader("Portfolio Assets")
+st.sidebar.subheader("📊 Portfolio Assets")
 
 # Función para agregar nuevo activo
 def add_asset():
@@ -60,7 +60,7 @@ for i, asset in enumerate(st.session_state.assets):
     
     with col3:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("X", key=f"remove_{i}", help="Remove asset"):
+        if st.button("🗑️", key=f"remove_{i}", help="Remove asset"):
             remove_asset(i)
             st.rerun()
 
@@ -76,6 +76,26 @@ if total_weight != 100:
 else:
     st.sidebar.success(f"✅ Total weight: {total_weight:.1f}%")
 
+# Botones para distribución automática de pesos
+st.sidebar.markdown("**Quick Weight Distribution:**")
+col_eq, col_rand = st.sidebar.columns(2)
+
+with col_eq:
+    if st.button("⚖️ Equal", use_container_width=True, help="Distribute weights equally"):
+        num_assets = len(st.session_state.assets)
+        equal_weight = 100.0 / num_assets
+        for asset in st.session_state.assets:
+            asset['weight'] = round(equal_weight, 2)
+        st.rerun()
+
+with col_rand:
+    if st.button("🎲 Random", use_container_width=True, help="Distribute weights randomly"):
+        # Generar pesos aleatorios que sumen 100
+        random_weights = np.random.dirichlet(np.ones(len(st.session_state.assets))) * 100
+        for i, asset in enumerate(st.session_state.assets):
+            asset['weight'] = round(random_weights[i], 2)
+        st.rerun()
+
 st.sidebar.markdown("---")
 
 # Parámetros de fecha y capital
@@ -88,7 +108,7 @@ initial_capital = st.sidebar.number_input(
 
 benchmark_ticker = "SPY"
 
-run = st.sidebar.button("Simulate", use_container_width=True, type="primary")
+run = st.sidebar.button("🚀 Simulate", use_container_width=True, type="primary")
 
 # =========================
 # FUNCTIONS
