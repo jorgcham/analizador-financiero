@@ -80,21 +80,24 @@ else:
 st.sidebar.markdown("**Quick Weight Distribution:**")
 col_eq, col_rand = st.sidebar.columns(2)
 
+def set_equal_weights():
+    num_assets = len(st.session_state.assets)
+    equal_weight = 100.0 / num_assets
+    for asset in st.session_state.assets:
+        asset['weight'] = round(equal_weight, 2)
+
+def set_random_weights():
+    random_weights = np.random.dirichlet(np.ones(len(st.session_state.assets))) * 100
+    for i, asset in enumerate(st.session_state.assets):
+        asset['weight'] = round(random_weights[i], 2)
+
 with col_eq:
-    if st.button("⚖️ Equal", use_container_width=True, help="Distribute weights equally"):
-        num_assets = len(st.session_state.assets)
-        equal_weight = 100.0 / num_assets
-        for asset in st.session_state.assets:
-            asset['weight'] = round(equal_weight, 2)
-        st.rerun()
+    st.button("⚖️ Equal", use_container_width=True, help="Distribute weights equally", 
+              on_click=set_equal_weights, key="equal_btn")
 
 with col_rand:
-    if st.button("🎲 Random", use_container_width=True, help="Distribute weights randomly"):
-        # Generar pesos aleatorios que sumen 100
-        random_weights = np.random.dirichlet(np.ones(len(st.session_state.assets))) * 100
-        for i, asset in enumerate(st.session_state.assets):
-            asset['weight'] = round(random_weights[i], 2)
-        st.rerun()
+    st.button("🎲 Random", use_container_width=True, help="Distribute weights randomly",
+              on_click=set_random_weights, key="random_btn")
 
 st.sidebar.markdown("---")
 
