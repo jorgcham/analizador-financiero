@@ -21,26 +21,10 @@ st.markdown("""
         background-color: #1e2130;
         padding: 15px;
         border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #1e2130 0%, #2d3250 100%);
-        padding: 20px;
-        border-radius: 12px;
-        margin: 10px 0;
-        border-left: 4px solid #00ff88;
     }
     h1 {
         color: #00ff88;
         font-weight: 700;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #1e2130;
-        border-radius: 8px;
-        padding: 10px 20px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -48,76 +32,29 @@ st.markdown("""
 st.title("📊 Portfolio Simulator")
 
 # =========================
-# SIDEBAR
+# INITIALIZE SESSION STATE
 # =========================
-st.sidebar.header("⚙️ Configuration")
-
-# Inicializar session state
 if 'assets' not in st.session_state:
     st.session_state.assets = [
-        {'ticker': 'AAPL', 'weight': 20},
-        {'ticker': 'MSFT', 'weight': 20},
-        {'ticker': 'GOOGL', 'weight': 20},
-        {'ticker': 'AMZN', 'weight': 20},
-        {'ticker': 'NVDA', 'weight': 20}
+        {'ticker': 'AAPL', 'weight': 20.0},
+        {'ticker': 'MSFT', 'weight': 20.0},
+        {'ticker': 'GOOGL', 'weight': 20.0},
+        {'ticker': 'AMZN', 'weight': 20.0},
+        {'ticker': 'NVDA', 'weight': 20.0}
     ]
 
 if 'simulation_results' not in st.session_state:
     st.session_state.simulation_results = None
 
-st.sidebar.subheader("💼 Portfolio Assets")
-
-# Funciones para gestionar activos
+# =========================
+# FUNCTIONS
+# =========================
 def add_asset():
-    st.session_state.assets.append({'ticker': '', 'weight': 0})
+    st.session_state.assets.append({'ticker': '', 'weight': 0.0})
 
 def remove_asset(index):
     if len(st.session_state.assets) > 1:
         st.session_state.assets.pop(index)
-
-# Mostrar activos
-for i, asset in enumerate(st.session_state.assets):
-    col1, col2, col3 = st.sidebar.columns([3, 2, 1])
-    
-    with col1:
-        asset['ticker'] = st.text_input(
-            f"Symbol",
-            value=asset['ticker'],
-            key=f"ticker_{i}",
-            placeholder="AAPL",
-            label_visibility="collapsed"
-        ).upper()
-    
-    with col2:
-        asset['weight'] = st.number_input(
-            f"Weight",
-            min_value=0.0,
-            max_value=100.0,
-            value=float(asset['weight']),
-            step=1.0,
-            key=f"weight_{i}",
-            label_visibility="collapsed"
-        )
-    
-    with col3:
-        if st.button("🗑️", key=f"remove_{i}", help="Remove"):
-            remove_asset(i)
-            st.rerun()
-
-if st.sidebar.button("➕ Add Asset", use_container_width=True):
-    add_asset()
-    st.rerun()
-
-# Validación de pesos
-total_weight = sum(asset['weight'] for asset in st.session_state.assets)
-if total_weight != 100:
-    st.sidebar.warning(f"⚠️ Total: {total_weight:.1f}%")
-else:
-    st.sidebar.success(f"✅ Total: {total_weight:.1f}%")
-
-# Botones de distribución
-st.sidebar.markdown("**Quick Distribution:**")
-col_eq, col_rand = st.sidebar.columns(2)
 
 def set_equal_weights():
     equal_weight = 100.0 / len(st.session_state.assets)
@@ -129,26 +66,6 @@ def set_random_weights():
     for i, asset in enumerate(st.session_state.assets):
         asset['weight'] = round(random_weights[i], 2)
 
-with col_eq:
-    st.button("⚖️ Equal", use_container_width=True, on_click=set_equal_weights, key="equal_btn")
-
-with col_rand:
-    st.button("🎲 Random", use_container_width=True, on_click=set_random_weights, key="random_btn")
-
-st.sidebar.markdown("---")
-
-# Parámetros
-start_date = st.sidebar.date_input("📅 From", date(2020, 1, 1))
-end_date = st.sidebar.date_input("📅 To", date.today())
-initial_capital = st.sidebar.number_input("💰 Initial Capital (USD)", value=10000.0, step=1000.0)
-
-benchmark_ticker = st.sidebar.selectbox("📈 Benchmark", ["SPY", "QQQ", "DIA", "IWM"], index=0)
-
-run = st.sidebar.button("🚀 Run Simulation", use_container_width=True, type="primary")
-
-# =========================
-# FUNCTIONS
-# =========================
 def download_prices(tickers, start, end):
     raw = yf.download(tickers, start=start, end=end, auto_adjust=True, progress=False)
     if raw.empty:
@@ -182,7 +99,6 @@ def sharpe_ratio(returns, risk_free=0.0):
 
 def create_performance_chart(portfolio_value, benchmark_value, initial_capital):
     fig = go.Figure()
-    
     dates = portfolio_value.index
     
     fig.add_trace(go.Scatter(
@@ -243,11 +159,78 @@ def create_pie_chart(tickers, weights):
     return fig
 
 # =========================
-# MAIN
+# SIDEBAR
+# =========================
+st.sidebar.header("⚙️ Configuration")
+st.sidebar.subheader("💼 Portfolio Assets")
+
+# Display assets
+for i, asset in enumerate(st.session_state.assets):
+    col1, col2, col3 = st.sidebar.columns([3, 2, 1])
+    
+    with col1:
+        asset['ticker'] = st.text_input(
+            "Symbol",
+            value=asset['ticker'],
+            key=f"ticker_{i}",
+            placeholder="AAPL",
+            label_visibility="collapsed"
+        ).upper()
+    
+    with col2:
+        asset['weight'] = st.number_input(
+            "Weight",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(asset['weight']),
+            step=1.0,
+            key=f"weight_{i}",
+            label_visibility="collapsed"
+        )
+    
+    with col3:
+        if st.button("🗑️", key=f"remove_{i}", help="Remove"):
+            remove_asset(i)
+            st.rerun()
+
+if st.sidebar.button("➕ Add Asset", use_container_width=True):
+    add_asset()
+    st.rerun()
+
+# Weight validation
+total_weight = sum(asset['weight'] for asset in st.session_state.assets)
+if total_weight != 100:
+    st.sidebar.warning(f"⚠️ Total: {total_weight:.1f}%")
+else:
+    st.sidebar.success(f"✅ Total: {total_weight:.1f}%")
+
+# Quick distribution buttons
+st.sidebar.markdown("**Quick Distribution:**")
+col_eq, col_rand = st.sidebar.columns(2)
+
+with col_eq:
+    st.button("⚖️ Equal", use_container_width=True, on_click=set_equal_weights, key="equal_btn")
+
+with col_rand:
+    st.button("🎲 Random", use_container_width=True, on_click=set_random_weights, key="random_btn")
+
+st.sidebar.markdown("---")
+
+# Parameters
+start_date = st.sidebar.date_input("📅 From", date(2020, 1, 1))
+end_date = st.sidebar.date_input("📅 To", date.today())
+initial_capital = st.sidebar.number_input("💰 Initial Capital (USD)", value=10000.0, step=1000.0)
+benchmark_ticker = st.sidebar.selectbox("📈 Benchmark", ["SPY", "QQQ", "DIA", "IWM"], index=0)
+
+run = st.sidebar.button("🚀 Run Simulation", use_container_width=True, type="primary")
+
+# =========================
+# MAIN EXECUTION
 # =========================
 if run:
     with st.spinner('🔄 Loading data and running simulation...'):
         try:
+            # Get valid tickers and weights
             tickers = [asset['ticker'] for asset in st.session_state.assets if asset['ticker'].strip()]
             weights = [asset['weight'] / 100.0 for asset in st.session_state.assets if asset['ticker'].strip()]
 
@@ -285,7 +268,7 @@ if run:
             b_total_return = (benchmark_value.iloc[-1] / initial_capital - 1) * 100
             b_annual_return = ((benchmark_value.iloc[-1] / initial_capital) ** (252 / len(benchmark_value)) - 1) * 100
 
-            # Guardar resultados en session_state
+            # Save results to session state
             st.session_state.simulation_results = {
                 'tickers': tickers,
                 'weights': weights,
@@ -303,18 +286,15 @@ if run:
                 'benchmark_ticker': benchmark_ticker
             }
 
-    except Exception as e:
-        st.error(f"❌ Error: {e}")
-        st.session_state.simulation_results = None
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
             st.session_state.simulation_results = None
 
-# Mostrar resultados si existen
+# =========================
+# DISPLAY RESULTS
+# =========================
 if st.session_state.simulation_results:
     results = st.session_state.simulation_results
-
-    # =========================
-    # DISPLAY
-    # =========================
     
     # Tabs
     tab1, tab2, tab3 = st.tabs(["📊 Performance", "💰 Allocation", "📈 Asset Prices"])
@@ -401,11 +381,8 @@ if st.session_state.simulation_results:
         
         st.plotly_chart(fig, use_container_width=True)
 
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-
 else:
-    # Placeholder
+    # Placeholder when no simulation has run
     st.info("👈 Configure your portfolio and click '🚀 Run Simulation' to start")
     
     col1, col2, col3 = st.columns(3)
