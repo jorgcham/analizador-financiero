@@ -8,8 +8,8 @@ from datetime import date
 # CONFIGURATION
 # =========================
 st.set_page_config(page_title="Portfolio Simulator", layout="wide")
-st.title("📊 Portfolio Simulator (Kwanti-style)")
-st.markdown("Educational portfolio backtesting tool")
+st.title("Portfolio Simulator")
+st.markdown("_______________________________________________________________")
 st.markdown("---")
 
 # =========================
@@ -147,7 +147,7 @@ if run:
         # =========================
         # DISPLAY METRICS
         # =========================
-        st.subheader("📌 Portfolio vs Benchmark (SPY)")
+        st.subheader("Portfolio vs Benchmark (SPY)")
 
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Final Value (USD)", f"${portfolio_value.iloc[-1]:,.2f}")
@@ -170,13 +170,13 @@ if run:
         })
         st.line_chart(comparison)
 
-        st.subheader("📊 Asset Prices (Adjusted)")
+        st.subheader("Asset Prices (Adjusted)")
         st.line_chart(asset_prices)
 
         # =========================
         # TABLE
         # =========================
-        st.subheader("📋 Portfolio Composition")
+        st.subheader("Portfolio Composition")
         table = pd.DataFrame({
             "Ticker": tickers,
             "Weight": weights,
