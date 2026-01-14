@@ -60,9 +60,13 @@ if st.sidebar.button("Simular e Imprimir Gráficos"):
 
     # GRÁFICO PROFESIONAL SIN ERRORES
     st.subheader("Gráfico Comparativo: Tu Cartera vs Mercado")
-    # Limpieza de datos para el gráfico
-    cartera_ret.index = pd.to_datetime(cartera_ret.index).tz_localize(None)
-    bench_ret.index = pd.to_datetime(bench_ret.index).tz_localize(None)
     
+    # 1. Limpiamos las fechas para que no tengan zona horaria (esto quita el error rojo)
+    cartera_ret.index = cartera_ret.index.tz_localize(None)
+    bench_ret.index = bench_ret.index.tz_localize(None)
+    
+    # 2. Creamos el gráfico comparativo
     fig = qs.plots.returns(cartera_ret, bench_ret, output=None, show=False)
+    
+    # 3. Lo mostramos en la web
     st.pyplot(fig)
