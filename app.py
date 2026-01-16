@@ -2,267 +2,163 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from datetime import date
+import plotly.express as px
+import plotly.graph_objects as iogo
+from datetime import date, timedelta
 
 # =========================
-# CONFIGURATION
+# CONFIGURACIÓN Y ESTILO
 # =========================
-st.set_page_config(page_title="Portfolio Simulator", layout="wide")
-st.title("Portfolio Simulator")
-st.markdown("_______________________________________________________________")
-st.markdown("---")
+st.set_page_config(page_title="Pro Portfolio Simulator", layout="wide", page_icon="📈")
+
+# CSS personalizado para mejorar la estética
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("📊 Pro Portfolio Simulator")
+st.caption("Herramienta de análisis cuantitativo estilo Kwanti")
 
 # =========================
-# SIDEBAR
+# SIDEBAR - PARÁMETROS
 # =========================
-st.sidebar.header("Parameters")
-
-# Inicializar session state para los activos
-if 'assets' not in st.session_state:
-    st.session_state.assets = [
-        {'ticker': 'AAPL', 'weight': 34},
-        {'ticker': 'MSFT', 'weight': 33},
-        {'ticker': 'GOOGL', 'weight': 33}
-    ]
-
-st.sidebar.subheader("📊 Portfolio Assets")
-
-# Función para agregar nuevo activo
-def add_asset():
-    st.session_state.assets.append({'ticker': '', 'weight': 0})
-
-# Función para eliminar activo
-def remove_asset(index):
-    if len(st.session_state.assets) > 1:
-        st.session_state.assets.pop(index)
-
-# Mostrar cada activo con sus controles
-for i, asset in enumerate(st.session_state.assets):
-    col1, col2, col3 = st.sidebar.columns([3, 2, 1])
+with st.sidebar:
+    st.header("Configuración")
     
-    with col1:
-        asset['ticker'] = st.text_input(
-            f"Symbol {i+1}",
-            value=asset['ticker'],
-            key=f"ticker_{i}",
-            placeholder="e.g. AAPL"
-        ).upper()
-    
-    with col2:
-        asset['weight'] = st.number_input(
-            f"Weight {i+1} (%)",
-            min_value=0.0,
-            max_value=100.0,
-            value=float(asset['weight']),
-            step=1.0,
-            key=f"weight_{i}"
-        )
-    
-    with col3:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🗑️", key=f"remove_{i}", help="Remove asset"):
-            remove_asset(i)
-            st.rerun()
+    if 'assets' not in st.session_state:
+        st.session_state.assets = [
+            {'ticker': 'SPY', 'weight': 50.0},
+            {'ticker': 'QQQ', 'weight': 50.0}
+        ]
 
-# Botón para agregar nuevo activo
-if st.sidebar.button("➕ Add Asset", use_container_width=True):
-    add_asset()
-    st.rerun()
-
-# Mostrar suma de pesos
-total_weight = sum(asset['weight'] for asset in st.session_state.assets)
-if total_weight != 100:
-    st.sidebar.warning(f"⚠️ Total weight: {total_weight:.1f}% (should be 100%)")
-else:
-    st.sidebar.success(f"✅ Total weight: {total_weight:.1f}%")
-
-# Botones para distribución automática de pesos
-st.sidebar.markdown("**Quick Weight Distribution:**")
-col_eq, col_rand = st.sidebar.columns(2)
-
-def set_equal_weights():
-    num_assets = len(st.session_state.assets)
-    equal_weight = 100.0 / num_assets
-    for asset in st.session_state.assets:
-        asset['weight'] = round(equal_weight, 2)
-
-def set_random_weights():
-    random_weights = np.random.dirichlet(np.ones(len(st.session_state.assets))) * 100
+    # Gestión de activos
+    st.subheader("🔍 Activos")
     for i, asset in enumerate(st.session_state.assets):
-        asset['weight'] = round(random_weights[i], 2)
+        col1, col2, col3 = st.columns([3, 2, 1])
+        with col1:
+            asset['ticker'] = st.text_input(f"Ticker", value=asset['ticker'], key=f"t_{i}").upper()
+        with col2:
+            asset['weight'] = st.number_input(f"%", value=float(asset['weight']), key=f"w_{i}")
+        with col3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🗑️", key=f"r_{i}"):
+                st.session_state.assets.pop(i)
+                st.rerun()
 
-with col_eq:
-    st.button("⚖️ Equal", use_container_width=True, help="Distribute weights equally", 
-              on_click=set_equal_weights, key="equal_btn")
+    if st.button("➕ Añadir Activo"):
+        st.session_state.assets.append({'ticker': '', 'weight': 0.0})
+        st.rerun()
 
-with col_rand:
-    st.button("🎲 Random", use_container_width=True, help="Distribute weights randomly",
-              on_click=set_random_weights, key="random_btn")
-
-st.sidebar.markdown("---")
-
-# Parámetros de fecha y capital
-start_date = st.sidebar.date_input("From", date(2020, 1, 1))
-end_date = st.sidebar.date_input("To", date.today())
-
-initial_capital = st.sidebar.number_input(
-    "Initial Capital (USD)", value=10000.0, step=500.0
-)
-
-benchmark_ticker = "SPY"
-
-run = st.sidebar.button("🚀 Simulate", use_container_width=True, type="primary")
-
-# =========================
-# FUNCTIONS
-# =========================
-def download_prices(tickers, start, end):
-    raw = yf.download(
-        tickers,
-        start=start,
-        end=end,
-        auto_adjust=True,
-        progress=False
-    )
-
-    if raw.empty:
-        return pd.DataFrame()
-
-    if isinstance(raw.columns, pd.MultiIndex):
-        prices = raw["Close"]
+    total_w = sum(a['weight'] for a in st.session_state.assets)
+    if abs(total_w - 100) > 0.01:
+        st.error(f"Pesos: {total_w}% (Debe ser 100%)")
     else:
-        prices = raw[["Close"]]
-        prices.columns = tickers
+        st.success("✅ Pesos validados")
 
-    return prices.dropna()
-
-
-def normalize_weights(w):
-    w = np.array(w, dtype=float)
-    return w / w.sum()
-
-
-def portfolio_simulation(prices, weights, capital):
-    returns = prices.pct_change().dropna()
-    port_returns = returns.dot(weights)
-    port_value = (1 + port_returns).cumprod() * capital
-    return port_value, port_returns
-
-
-def max_drawdown(series):
-    cumulative = (1 + series).cumprod()
-    peak = cumulative.cummax()
-    drawdown = (cumulative - peak) / peak
-    return drawdown.min() * 100
-
-
-def sharpe_ratio(returns, risk_free=0.0):
-    excess = returns - risk_free / 252
-    return np.sqrt(252) * excess.mean() / excess.std()
+    st.divider()
+    
+    start_date = st.date_input("Fecha Inicio", date.today() - timedelta(days=365*5))
+    end_date = st.date_input("Fecha Fin", date.today())
+    initial_cap = st.number_input("Capital Inicial (USD)", value=10000)
+    benchmark_symbol = st.text_input("Benchmark (ej. SPY)", "SPY")
+    
+    run_btn = st.button("🚀 EJECUTAR SIMULACIÓN", use_container_width=True, type="primary")
 
 # =========================
-# MAIN
+# LÓGICA DE CÁLCULO
 # =========================
-if run:
+def get_data(tickers, start, end):
+    data = yf.download(tickers, start=start, end=end, auto_adjust=True)['Close']
+    return data
+
+if run_btn and abs(total_w - 100) < 0.01:
     try:
-        # Filtrar activos válidos
-        tickers = [asset['ticker'] for asset in st.session_state.assets if asset['ticker'].strip()]
-        weights = [asset['weight'] / 100.0 for asset in st.session_state.assets if asset['ticker'].strip()]
+        with st.spinner('Calculando métricas...'):
+            tickers = [a['ticker'] for a in st.session_state.assets]
+            weights = np.array([a['weight']/100 for a in st.session_state.assets])
+            
+            # Descarga de datos
+            all_tickers = list(set(tickers + [benchmark_symbol]))
+            prices = get_data(all_tickers, start_date, end_date)
+            
+            if prices.empty:
+                st.error("No se pudieron obtener datos. Revisa los tickers.")
+                st.stop()
 
-        if len(tickers) == 0:
-            st.error("Please add at least one symbol")
-            st.stop()
+            # Cálculo de retornos
+            returns = prices[tickers].pct_change().dropna()
+            bench_returns = prices[benchmark_symbol].pct_change().dropna()
+            
+            # Cartera
+            port_returns = returns.dot(weights)
+            cum_port = (1 + port_returns).cumprod() * initial_cap
+            cum_bench = (1 + bench_returns).cumprod() * initial_cap
 
-        if len(tickers) != len(weights):
-            st.error("The number of weights and symbols must match")
-            st.stop()
+            # =========================
+            # MÉTRICAS CLAVE
+            # =========================
+            total_ret = (cum_port.iloc[-1] / initial_cap - 1) * 100
+            ann_ret = ((1 + total_ret/100)**(252/len(port_returns)) - 1) * 100
+            vol = port_returns.std() * np.sqrt(252) * 100
+            sharpe = (ann_ret / vol) if vol != 0 else 0
+            
+            # Drawdown
+            rolling_max = cum_port.cummax()
+            drawdown = (cum_port - rolling_max) / rolling_max
+            max_dd = drawdown.min() * 100
 
-        # Normalizar pesos (por si no suman exactamente 100%)
-        weights = normalize_weights(weights)
+            # Dashboard de métricas
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Valor Final", f"${cum_port.iloc[-1]:,.2f}")
+            m2.metric("Retorno Anualizado", f"{ann_ret:.2f}%")
+            m3.metric("Ratio Sharpe", f"{sharpe:.2f}")
+            m4.metric("Max Drawdown", f"{max_dd:.2f}%", delta_color="inverse")
 
-        # Download prices
-        asset_prices = download_prices(tickers, start_date, end_date)
-        benchmark_prices = download_prices([benchmark_ticker], start_date, end_date)
+            # =========================
+            # GRÁFICOS INTERACTIVOS
+            # =========================
+            st.divider()
+            
+            col_left, col_right = st.columns(2)
 
-        if asset_prices.empty or benchmark_prices.empty:
-            st.error("Market data could not be downloaded")
-            st.stop()
+            with col_left:
+                st.subheader("📈 Crecimiento de la Inversión")
+                fig_growth = iogo.Figure()
+                fig_growth.add_trace(iogo.Scatter(x=cum_port.index, y=cum_port, name="Cartera", line=dict(color='#1f77b4')))
+                fig_growth.add_trace(iogo.Scatter(x=cum_bench.index, y=cum_bench, name=f"Benchmark ({benchmark_symbol})", line=dict(color='#ff7f0e', dash='dash')))
+                fig_growth.update_layout(hovermode="x unified", template="plotly_white")
+                st.plotly_chart(fig_growth, use_container_width=True)
 
-        # Align dates
-        prices = asset_prices.join(benchmark_prices, how="inner")
+            with col_right:
+                st.subheader("📉 Análisis de Drawdown (Riesgo)")
+                fig_dd = px.area(drawdown * 100, title="Caída desde el máximo (%)", color_discrete_sequence=['red'])
+                fig_dd.update_layout(showlegend=False, template="plotly_white")
+                st.plotly_chart(fig_dd, use_container_width=True)
 
-        asset_prices = prices[tickers]
-        benchmark_prices = prices[benchmark_ticker]
+            st.divider()
 
-        # Simulations
-        portfolio_value, portfolio_returns = portfolio_simulation(
-            asset_prices, weights, initial_capital
-        )
+            col_bot1, col_bot2 = st.columns(2)
 
-        benchmark_returns = benchmark_prices.pct_change().dropna()
-        benchmark_value = (1 + benchmark_returns).cumprod() * initial_capital
+            with col_bot1:
+                st.subheader("🧩 Correlación entre Activos")
+                corr_matrix = returns.corr()
+                fig_corr = px.imshow(corr_matrix, text_auto=True, color_continuous_scale='RdBu_r')
+                st.plotly_chart(fig_corr, use_container_width=True)
+                st.info("Una correlación baja (cercana a 0) indica mejor diversificación.")
 
-        # =========================
-        # METRICS
-        # =========================
-        total_return = (portfolio_value.iloc[-1] / initial_capital - 1) * 100
-        annual_return = (
-            (portfolio_value.iloc[-1] / initial_capital)
-            ** (252 / len(portfolio_value)) - 1
-        ) * 100
-
-        volatility = portfolio_returns.std() * np.sqrt(252) * 100
-        sharpe = sharpe_ratio(portfolio_returns)
-        mdd = max_drawdown(portfolio_returns)
-
-        b_total_return = (benchmark_value.iloc[-1] / initial_capital - 1) * 100
-        b_annual_return = (
-            (benchmark_value.iloc[-1] / initial_capital)
-            ** (252 / len(benchmark_value)) - 1
-        ) * 100
-
-        # =========================
-        # DISPLAY METRICS
-        # =========================
-        st.subheader("Portfolio vs Benchmark (SPY)")
-
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Final Value (USD)", f"${portfolio_value.iloc[-1]:,.2f}")
-        c2.metric("Total Return (%)", f"{total_return:.2f}%")
-        c3.metric("Annual Return (%)", f"{annual_return:.2f}%")
-        c4.metric("Volatility (%)", f"{volatility:.2f}%")
-        c5.metric("Sharpe Ratio", f"{sharpe:.2f}")
-
-        c6, c7, _, _, _ = st.columns(5)
-        c6.metric("Max Drawdown (%)", f"{mdd:.2f}%")
-        c7.metric("SPY Annual Return (%)", f"{b_annual_return:.2f}%")
-
-        # =========================
-        # CHARTS
-        # =========================
-        st.subheader("📈 Growth of $1 (Portfolio vs SPY)")
-        comparison = pd.DataFrame({
-            "Portfolio": portfolio_value / initial_capital,
-            "SPY": benchmark_value / initial_capital
-        })
-        st.line_chart(comparison)
-
-        st.subheader("Asset Prices (Adjusted)")
-        st.line_chart(asset_prices)
-
-        # =========================
-        # TABLE
-        # =========================
-        st.subheader("Portfolio Composition")
-        table = pd.DataFrame({
-            "Ticker": tickers,
-            "Weight (%)": [w * 100 for w in weights],
-            "Allocated Capital (USD)": weights * initial_capital
-        })
-        st.dataframe(table, use_container_width=True)
+            with col_bot2:
+                st.subheader("🍰 Composición")
+                fig_pie = px.pie(values=weights*100, names=tickers, hole=0.4)
+                st.plotly_chart(fig_pie, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Simulation error: {e}")
+        st.error(f"Error en la simulación: {e}")
+
+else:
+    st.info("Configura los activos en la barra lateral y haz clic en 'Ejecutar Simulación'. Asegúrate de que los pesos sumen 100%.")
 
 st.markdown("---")
-st.caption("Educational simulator · Not financial advice")
+st.caption("Nota: Los datos son obtenidos de Yahoo Finance. Este simulador no constituye asesoría financiera.")
