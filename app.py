@@ -9,126 +9,188 @@ from streamlit_searchbox import st_searchbox
 import requests
 
 # =========================
-# CONFIGURACIÓN
+# CONFIGURACIÓN Y ESTILO OSCURO
 # =========================
-st.set_page_config(page_title="Quant Search Simulator", layout="wide", page_icon="🔍")
+st.set_page_config(page_title="Kwanti-Style Analytics", layout="wide", page_icon="📊")
 
-# Función para buscar tickers en la API de Yahoo Finance
+# Aplicamos un tema oscuro personalizado vía CSS
+st.markdown("""
+    <style>
+    .stApp { background-color: #121212; color: #e0e0e0; }
+    .stMetric { background-color: #1e1e1e; padding: 15px; border-radius: 5px; border: 1px solid #333; }
+    [data-testid="stSidebar"] { background-color: #1a1a1a; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { background-color: #1e1e1e; border-radius: 5px 5px 0 0; padding: 10px 20px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Función de búsqueda de Yahoo Finance
 def search_yahoo_tickers(searchterm: str):
-    if not searchterm:
-        return []
+    if not searchterm or len(searchterm) < 2: return []
     url = f"https://query1.finance.yahoo.com/v1/finance/search?q={searchterm}&quotesCount=5"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    # Retorna una lista de tuplas (Nombre para mostrar, Valor del ticker)
-    return [f"{res['symbol']} - {res.get('longname', '')}" for res in data.get('quotes', [])]
+    try:
+        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        data = response.json()
+        return [f"{res['symbol']} - {res.get('longname', 'N/A')}" for res in data.get('quotes', [])]
+    except: return []
 
 # =========================
-# SIDEBAR
+# SIDEBAR - GESTIÓN DE POSICIONES
 # =========================
 with st.sidebar:
-    st.title("🚀 Mi Cartera")
+    st.title("💼 Portfolio Setup")
     
     if 'assets' not in st.session_state:
         st.session_state.assets = []
 
-    # Buscador Predictivo para añadir activos
-    st.subheader("Añadir nuevo activo")
-    selected_ticker_full = st_searchbox(
-        search_yahoo_tickers,
-        placeholder="Escribe el nombre o ticker (ej: Apple)...",
-        key="ticker_searcher",
-    )
-
-    if selected_ticker_full:
-        # Extraemos solo el ticker (lo que está antes del guion)
-        ticker_to_add = selected_ticker_full.split(" - ")[0]
-        if st.button(f"Añadir {ticker_to_add}"):
-            if not any(a['ticker'] == ticker_to_add for a in st.session_state.assets):
-                st.session_state.assets.append({'ticker': ticker_to_add, 'weight': 0.0})
+    # Buscador de Tickers
+    selected_full = st_searchbox(search_yahoo_tickers, placeholder="Add Symbol (e.g. AAPL)...", key="searcher")
+    
+    if selected_full:
+        ticker = selected_full.split(" - ")[0]
+        if st.button(f"➕ Add {ticker}", use_container_width=True):
+            if not any(a['ticker'] == ticker for a in st.session_state.assets):
+                st.session_state.assets.append({'ticker': ticker, 'weight': 0.0})
                 st.rerun()
 
     st.divider()
 
-    # Mostrar y editar activos añadidos
+    # Tabla de pesos en el Sidebar
     for i, asset in enumerate(st.session_state.assets):
-        cols = st.columns([3, 2, 1])
-        cols[0].markdown(f"**{asset['ticker']}**")
-        asset['weight'] = cols[1].number_input(f"%", value=float(asset['weight']), key=f"w_{i}", step=5.0)
-        if cols[2].button("🗑️", key=f"del_{i}"):
+        c1, c2, c3 = st.columns([3, 3, 1])
+        c1.markdown(f"**{asset['ticker']}**")
+        asset['weight'] = c2.number_input("%", value=float(asset['weight']), key=f"w_{i}", step=1.0)
+        if c3.button("🗑️", key=f"del_{i}"):
             st.session_state.assets.pop(i)
             st.rerun()
 
     total_w = sum(a['weight'] for a in st.session_state.assets)
-    st.write(f"Suma total: `{total_w:.1f}%`")
-    
+    if total_w != 100:
+        st.warning(f"Total Weight: {total_w:.1f}%")
+    else:
+        st.success("Allocation: 100%")
+
     st.divider()
-    start_date = st.date_input("Desde", date(2020, 1, 1))
-    capital = st.number_input("Capital Inicial ($)", value=10000)
+    start_date = st.date_input("From", date(2021, 1, 1))
+    capital = st.number_input("Initial Value ($)", value=100000)
+    benchmark = st.text_input("Comparison Benchmark", "SPY")
     
-    run_btn = st.button("ANALIZAR CARTERA", use_container_width=True, type="primary")
+    analyze = st.button("🚀 RUN ANALYTICS", use_container_width=True, type="primary")
 
 # =========================
-# LÓGICA DE DATOS Y VISUALIZACIÓN
+# LÓGICA DE DATOS
 # =========================
-if run_btn:
-    if abs(total_w - 100) > 0.1:
-        st.error("Los pesos deben sumar 100%")
-        st.stop()
-
+if analyze and len(st.session_state.assets) > 0:
     tickers = [a['ticker'] for a in st.session_state.assets]
     weights = np.array([a['weight']/100 for a in st.session_state.assets])
-
-    with st.spinner('Obteniendo datos de Yahoo Finance...'):
-        data = yf.download(tickers, start=start_date, actions=True)
+    
+    with st.spinner('Synchronizing Market Data...'):
+        # Descargamos datos de activos + benchmark
+        all_syms = list(set(tickers + [benchmark]))
+        data = yf.download(all_syms, start=start_date, actions=True)
+        
         prices = data['Close'].ffill()
         divs = data['Dividends'].fillna(0) if 'Dividends' in data else pd.DataFrame(0, index=prices.index, columns=prices.columns)
-
-        # Performance
-        rets = prices.pct_change().dropna()
+        
+        # Cálculos de Cartera
+        rets = prices[tickers].pct_change().dropna()
         port_rets = rets.dot(weights)
         cum_value = (1 + port_rets).cumprod() * capital
         
-        # Income (Dividendos)
-        shares = (weights * capital) / prices.iloc[0]
-        portfolio_divs = (divs * shares).sum(axis=1)
+        # Cálculos de Benchmark
+        bench_rets = prices[benchmark].pct_change().dropna()
+        bench_value = (1 + bench_rets).cumprod() * capital
 
-        # MÉTRICAS
-        st.header(f"Resultados: Cartera vs SPY")
+    # =========================
+    # VISTA ESTILO KWANTI
+    # =========================
+    st.title("Portfolio Analytics")
+
+    # Fila Superior: Tabla de Posiciones y Gráfico de Tarta
+    col_table, col_pie = st.columns([2, 1])
+    
+    with col_table:
+        st.subheader(f"{len(tickers)} Positions")
+        # Creamos el resumen de la tabla
+        last_prices = prices[tickers].iloc[-1]
+        table_data = pd.DataFrame({
+            "Symbol": tickers,
+            "Price": last_prices.values,
+            "Weight": [f"{w*100:.1f}%" for w in weights],
+            "Value": (weights * cum_value.iloc[-1]).astype(float)
+        })
+        st.dataframe(table_data.style.format({"Price": "${:,.2f}", "Value": "${:,.2f}"}), use_container_width=True, hide_index=True)
+        st.caption(f"Portfolio Total Value: ${cum_value.iloc[-1]:,.2f}")
+
+    with col_pie:
+        fig_pie = px.pie(names=tickers, values=weights, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_pie.update_layout(showlegend=False, margin=dict(t=30, b=0, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    st.divider()
+
+    # SISTEMA DE TABS (Igual que Kwanti)
+    tab_perf, tab_inc, tab_corr, tab_risk = st.tabs(["📈 Performance", "💵 Income", "🔗 Correlations", "⚠️ Risk"])
+
+    with tab_perf:
+        # Gráfico de Línea Comparativo
+        fig_line = go.Figure()
+        fig_line.add_trace(go.Scatter(x=cum_value.index, y=cum_value, name="Demo Portfolio", line=dict(color='#a6ce39', width=2)))
+        fig_line.add_trace(go.Scatter(x=bench_value.index, y=bench_value, name=f"{benchmark} Index", line=dict(color='#4a90e2', width=2)))
+        fig_line.update_layout(template="plotly_dark", hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig_line, use_container_width=True)
         
-        c1, c2, c3, c4 = st.columns(4)
+        # Métricas de Performance
+        p1, p2, p3 = st.columns(3)
         total_ret = (cum_value.iloc[-1] / capital - 1) * 100
-        ann_vol = port_rets.std() * np.sqrt(252) * 100
-        
-        c1.metric("Valor Final", f"${cum_value.iloc[-1]:,.2f}")
-        c2.metric("Retorno Total", f"{total_ret:.2f}%")
-        c3.metric("Volatilidad Anual", f"{ann_vol:.2f}%")
-        c4.metric("Total Dividendos", f"${portfolio_divs.sum():,.2f}")
+        bench_ret = (bench_value.iloc[-1] / capital - 1) * 100
+        p1.metric("Total Return", f"{total_ret:.2f}%", f"{total_ret - bench_ret:.2f}% vs Bench")
+        p2.metric("Annualized Return", f"{((1 + total_ret/100)**(252/len(port_rets)) - 1)*100:.2f}%")
+        p3.metric("Sharpe Ratio", f"{(port_rets.mean()*252) / (port_rets.std()*np.sqrt(252)):.2f}")
 
-        # GRÁFICOS
-        tab1, tab2, tab3 = st.tabs(["📈 Performance", "⚠️ Riesgo", "💰 Income"])
+    with tab_inc:
+        st.subheader("Estimated Dividend Income")
+        shares = (weights * capital) / prices[tickers].iloc[0]
+        portfolio_divs = (divs[tickers] * shares).sum(axis=1)
+        monthly_divs = portfolio_divs.resample('M').sum()
         
-        with tab1:
-            fig_perf = px.line(cum_value, title="Crecimiento de la Inversión")
-            st.plotly_chart(fig_perf, use_container_width=True)
-            
-        with tab2:
-            st.subheader("Análisis de Riesgo")
-            peak = cum_value.cummax()
-            dd = (cum_value - peak) / peak
-            fig_dd = px.area(dd * 100, title="Máximo Drawdown (Caídas)", color_discrete_sequence=['red'])
-            st.plotly_chart(fig_dd, use_container_width=True)
-            
-            st.subheader("Matriz de Correlación")
-            fig_corr = px.imshow(rets.corr(), text_auto=".2f", color_continuous_scale='RdBu_r')
-            st.plotly_chart(fig_corr, use_container_width=True)
+        fig_inc = px.bar(x=monthly_divs.index, y=monthly_divs.values, labels={'x': 'Date', 'y': 'Income ($)'}, color_discrete_sequence=['#a6ce39'])
+        fig_inc.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_inc, use_container_width=True)
+        st.write(f"**Total Dividends Received:** ${portfolio_divs.sum():,.2f}")
 
-        with tab3:
-            st.subheader("Ingresos por Dividendos")
-            monthly_div = portfolio_divs.resample('M').sum()
-            fig_div = px.bar(monthly_div, title="Dividendos Mensuales Cobrados ($)")
-            st.plotly_chart(fig_div, use_container_width=True)
+    with tab_corr:
+        st.subheader("Asset Correlation Matrix")
+        corr = rets.corr()
+        fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale='RdBu_r', range_color=[-1, 1])
+        fig_corr.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+    with tab_risk:
+        st.subheader("Risk & Volatility Analysis")
+        # Drawdown
+        peak = cum_value.cummax()
+        dd = (cum_value - peak) / peak
+        fig_dd = px.area(x=dd.index, y=dd.values * 100, title="Drawdown (%)", color_discrete_sequence=['#ff4b4b'])
+        fig_dd.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_dd, use_container_width=True)
+        
+        r1, r2 = st.columns(2)
+        r1.metric("Max Drawdown", f"{dd.min()*100:.2f}%")
+        r2.metric("Annual Volatility", f"{port_rets.std()*np.sqrt(252)*100:.2f}%")
 
 else:
-    st.info("Utiliza el buscador de la izquierda para añadir empresas y analiza tu estrategia.")
+    # Estado inicial: Pantalla vacía estilo Dashboard
+    st.info("👈 Please add symbols and set weights to 100% in the sidebar to begin analysis.")
+    ```
+
+### ¿Qué hace a esta versión "Kwanti-Style"?
+
+1.  **Layout de Dos Niveles:** Al igual que en tu imagen, arriba tienes la **Tabla de Posiciones** y el **Gráfico de Tarta (Pie Chart)**. Abajo tienes el análisis temporal.
+2.  **Sistema de Pestañas (Tabs):** He implementado las pestañas exactas que se ven en Kwanti: *Performance, Income, Correlations y Risk*.
+3.  **Visualización Dark:** He inyectado CSS para forzar un fondo gris oscuro/negro y tarjetas que resaltan la información, imitando la estética de terminal financiera.
+4.  **Comparación Directa:** El gráfico principal siempre compara tu "Demo Portfolio" contra el Benchmark (normalmente SPY), calculando el diferencial de retorno.
+5.  **Buscador Integrado:** Puedes añadir activos escribiendo su nombre, y el sistema limpia los datos automáticamente.
+
+**¿Qué más podemos añadir?**
+Si quieres ir más allá, puedo añadir la función **"Optimize"** (que aparece en el menú de arriba de tu imagen) para que el simulador calcule automáticamente qué pesos te darían el máximo retorno con el mínimo riesgo. ¿Te interesa?
