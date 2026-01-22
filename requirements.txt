@@ -1,7 +1,8 @@
 streamlit
-alpha_vantage
+yfinance
 pandas
 numpy
 plotly
 streamlit-searchbox
+
 
